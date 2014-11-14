@@ -120,7 +120,7 @@ if ($handle = opendir($fulldir)) {
         if ($dirarray[$s] != $folder) { print "/"; } // add '/' in the right places for the GET variables
         }
       print '">';
-	  print '<img width="12" height="12" src="'; // start img tag
+	  print '<img width="12" height="12" alt="'.$folder.'" src="'; // start img tag
 	  print add_icon("nav"); // insert image data
 	  print '" />&nbsp;'; // close img tag (and add a space)
       print "$folder";
@@ -130,7 +130,7 @@ if ($handle = opendir($fulldir)) {
 	print "</div>";
     }
   else { 
-    print '<div class="nav"><img alt="[dir]" width="12" height="12" src="'.add_icon("nav").'" />&nbsp;root</a></div>'; 
+    print '<div class="nav"><img alt="root" width="12" height="12" src="'.add_icon("nav").'" />&nbsp;root</div>'; 
 	}
 
 
@@ -143,8 +143,8 @@ if ($handle = opendir($fulldir)) {
     if(is_dir($dir_path.$entry)) {
       
 	  print '<div class="file">';
-      print '<a href="'.$thisfilename.'?dir='.$dir."/".$entry.'">';
-		print "<img src='".add_icon("dir")."'><br>";
+      print '<a href="'.$thisfilename.'?dir='.urlencode($dir."/".$entry).'">';
+		print "<img alt='$entry' src='".add_icon("dir")."'><br>";
 		print substr($entry,0,15);
 	  print '</a>';
 	  print "</div>";
@@ -156,7 +156,7 @@ if ($handle = opendir($fulldir)) {
     if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg")))  {
 		print '<div class="file">';
 		print "<a href='//".get_file($dir_path.$entry)['link']."'>";
-		print "<img src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
+		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
 		// print get_file($dir_path.$entry)['name']; // useless...
 		print substr($entry,0,15);
 		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
@@ -172,7 +172,7 @@ function get_file($entry) {
 		$name = pathinfo($entry)['basename'];
 		$folder = pathinfo($entry)['dirname'];
 		$fixed_dir = substr($dir,1)."/"; // move '/' from start to end
-		$link = $webdir.$fixed_dir.$name;
+		$link = $webdir.urlencode($fixed_dir.$name);
 		$size = filesize($entry);
 		$updated = date ("d/m/Y", filemtime($dir_path.$entry));
 		
