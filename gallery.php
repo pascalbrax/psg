@@ -147,7 +147,7 @@ if ($handle = opendir($fulldir)) {
 		print "<img alt='$entry' src='".add_icon("dir")."'><br>";
 		print substr($entry,0,15);
 	  print '</a>';
-	  print "</div>";
+	  print "</div>\n";
       }
 	}
   
@@ -160,7 +160,7 @@ if ($handle = opendir($fulldir)) {
 		// print get_file($dir_path.$entry)['name']; // useless...
 		print substr($entry,0,15);
 		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
-		print "</div>";
+		print "</div>\n";
 
       }
 	}
@@ -172,7 +172,7 @@ function get_file($entry) {
 		$name = pathinfo($entry)['basename'];
 		$folder = pathinfo($entry)['dirname'];
 		$fixed_dir = substr($dir,1)."/"; // move '/' from start to end
-		$link = $webdir.urlencode($fixed_dir.$name);
+		$link = $webdir.$fixed_dir.$name;
 		$size = filesize($entry);
 		$updated = date ("d/m/Y", filemtime($dir_path.$entry));
 		
