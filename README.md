@@ -6,4 +6,9 @@ Easy and simple gallery in one single PHP file with (almost) zero-configuration.
 
 Demo: http://mira.scavenger.ch/~pascal/psg/gallery.php
 
-Tip: create a writable "cache" folder to browse the images a bit faster.
+**Tips:**
+* create a writable "cache" folder for browsing the images a bit faster.
+* Download [pSimpleBox] and put ```psimplebox.js``` in the same folder to get a nice [Lighbox] style effect (**do NOT edit any file**).
+
+[pSimpleBox]:https://github.com/pascalbrax/pslb
+[Lighbox]:http://lokeshdhakar.com/projects/lightbox2/
