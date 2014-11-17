@@ -22,9 +22,6 @@ $thisfilepath = str_replace($thisfilename, "",$thisfilelocation);
 $workdir = getcwd(); // no trailing '/'
 $webdir = $_SERVER['SERVER_NAME'].$thisfilepath;
 
-// add jquery script src to html 
-$htmlscripts = "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js\"></script>\n";
-
 // check if cache folder is available
 $cachefolder = "cache"; // folder name where cache images thumbnails
 $cache = false;
@@ -37,9 +34,10 @@ if (file_exists($cachefolder)) {
 	}
 
 // enable psimplebox (lightbox clone)
-$lightbox = true; // set to "false" to disable
-if ($lightbox) {
-	$htmlscripts .= "<script src=\"http://mira.scavenger.ch/~pascal/pslb/psimplebox.js\"></script>\n";
+if (file_exists("psimplebox.js")) {
+	// add jquery script src and simplebox to html
+	$htmlscripts = "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js\"></script>\n
+	<script src=\"psimplebox.js\"></script>\n";
 	}
 
 if ($thumb) {
