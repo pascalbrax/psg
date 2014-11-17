@@ -22,7 +22,11 @@ $thisfilepath = str_replace($thisfilename, "",$thisfilelocation);
 $workdir = getcwd(); // no trailing '/'
 $webdir = $_SERVER['SERVER_NAME'].$thisfilepath;
 
-$cachefolder = "cache"; // name of the images cache folder 
+// add jquery script src to html 
+$htmlscripts = "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js\"></script>\n";
+
+// check if cache folder is available
+$cachefolder = "cache"; // folder name where cache images thumbnails
 $cache = false;
 if (file_exists($cachefolder)) {
 	// cache folder is available
@@ -32,9 +36,11 @@ if (file_exists($cachefolder)) {
 		}
 	}
 
-// to do...
-$lightbox = false;
-
+// enable psimplebox (lightbox clone)
+$lightbox = true;
+if ($lightbox) {
+	$htmlscripts .= "<script src=\"http://mira.scavenger.ch/~pascal/pslb/psimplebox.js\"></script>\n";
+	}
 
 if ($thumb) {
 	// if we need a thumbnail	
@@ -99,6 +105,8 @@ $htmlstart = "
 	a:hover {color:blue;text-decoration:none;}
 	a:active {color:black;text-decoration:none;}
 	</style>
+	
+	$htmlscripts
 </head>
 <body>";
 print $htmlstart;
@@ -152,10 +160,11 @@ if ($handle = opendir($fulldir)) {
 	}
   
   // image list
+  print "<div id=\"imageSet\">";
   foreach($directories as $entry) {
     if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg")))  {
 		print '<div class="file">';
-		print "<a href='//".get_file($dir_path.$entry)['link']."'>";
+		print "<a href='//".get_file($dir_path.$entry)['link']."' class='simplebox'>";
 		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
 		// print get_file($dir_path.$entry)['name']; // useless...
 		print substr($entry,0,15);
@@ -164,6 +173,7 @@ if ($handle = opendir($fulldir)) {
 
       }
 	}
+  print "</div>";
   }
   
 function get_file($entry) {
