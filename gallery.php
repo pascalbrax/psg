@@ -37,7 +37,7 @@ if (file_exists($cachefolder)) {
 	}
 
 // enable psimplebox (lightbox clone)
-$lightbox = true;
+$lightbox = true; // set to "false" to disable
 if ($lightbox) {
 	$htmlscripts .= "<script src=\"http://mira.scavenger.ch/~pascal/pslb/psimplebox.js\"></script>\n";
 	}
