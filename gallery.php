@@ -91,11 +91,8 @@ $htmlstart = "
 	div.file {
 		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;background-color:#EEEEEE;float:left;width:200px;height:200px;text-align:center;margin-bottom:10px; margin-right:10px;
 		}
-	div.size {
-		font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;background-color: #CCCCFF;
-		}
-	div.date {
-		font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;background-color: #DDDDFF;
+	div.file:hover {
+		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;background-color:#FAFAFA;float:left;width:200px;height:200px;text-align:center;margin-bottom:10px; margin-right:10px;
 		}
 
 	a:link {color:black;text-decoration:none;}
