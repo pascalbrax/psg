@@ -62,6 +62,14 @@ if ($thumb) {
 			}
 		else {
 			// cache available, file not exist yet so we create it
+            
+            // if image is PNG, convert to JPEG first
+            if (strpos(strtolower($thumb),".png")) { 
+                $image = imagecreatefrompng($imagefilename);
+                $convertedimagefilename = $cachefolder."png2jpeg".str_replace("/","+",$dir)."+".$thumb;
+                imagejpeg($image, $convertedimagefilename, 50);
+                $imagefilename = $convertedimagefilename;
+            }
 			imagejpeg(generate_thumb($imagefilename),$cachedfilename);
 			readfile($cachedfilename);
 			}
@@ -157,7 +165,7 @@ if ($handle = opendir($fulldir)) {
   // image list
   print "<div id=\"imageSet\">";
   foreach($directories as $entry) {
-    if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg")))  {
+    if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")))  {
 		print '<div class="file">';
 		print "<a href='//".get_file($dir_path.$entry)['link']."' class='simplebox'>";
 		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
@@ -246,3 +254,4 @@ function add_icon($type) {
 /* pascal brax 2014 */
   
 ?>
+
