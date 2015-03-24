@@ -66,7 +66,7 @@ if ($thumb) {
             // if image is PNG, convert to JPEG first
             if (strpos(strtolower($thumb),".png")) { 
                 $image = imagecreatefrompng($imagefilename);
-                $convertedimagefilename = $cachefolder."png2jpeg".str_replace("/","+",$dir)."+".$thumb;
+                $convertedimagefilename = $cachefolder."/png2jpeg".str_replace("/","+",$dir)."+".$thumb;
                 imagejpeg($image, $convertedimagefilename, 50);
                 $imagefilename = $convertedimagefilename;
             }
