@@ -58,7 +58,6 @@ if ($thumb) {
 		if (file_exists($cachedfilename)) {
 			// read thumbnail from cache
 			readfile($cachedfilename);
-			
 			}
 		else {
 			// cache available, file not exist yet so we create it
@@ -67,11 +66,11 @@ if ($thumb) {
             if (strpos(strtolower($thumb),".png")) { 
                 $image = imagecreatefrompng($imagefilename);
                 $convertedimagefilename = $cachefolder."/png2jpeg".str_replace("/","+",$dir)."+".$thumb;
-                imagejpeg($image, $convertedimagefilename, 50);
+                imagejpeg($image, $convertedimagefilename, 20);
                 $imagefilename = $convertedimagefilename;
             }
 			imagejpeg(generate_thumb($imagefilename),$cachedfilename);
-			readfile($cachedfilename);
+            readfile($cachedfilename);
 			}
 		}
 	else {
@@ -110,6 +109,10 @@ $htmlstart = "
 	</style>
 	
 	$htmlscripts
+    
+    <!-- 
+                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
+    -->
 </head>
 <body>";
 print $htmlstart;
@@ -165,7 +168,7 @@ if ($handle = opendir($fulldir)) {
   // image list
   print "<div id=\"imageSet\">";
   foreach($directories as $entry) {
-    if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")))  {
+    if(is_file($dir_path.$entry) AND ((strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")) AND !strpos(strtolower($entry),".filepart")))  {
 		print '<div class="file">';
 		print "<a href='//".get_file($dir_path.$entry)['link']."' class='simplebox'>";
 		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
