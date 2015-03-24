@@ -4,7 +4,7 @@ psg
 Easy and simple gallery in one single PHP file with (almost) zero-configuration.
 *GD Library is required.*
 
-Demo: http://mira.scavenger.ch/~pascal/psg/gallery.php
+Demo: http://www.scavenger.ch/images/
 
 **Installation:**
 * Make sure you have at least PHP 5.3 and GD library installed.
