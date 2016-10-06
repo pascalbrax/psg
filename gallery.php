@@ -86,6 +86,9 @@ if ($thumb) {
 $htmlstart = "
 <!DOCTYPE html>
 <html>
+    <!-- 
+                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
+    -->
 <head>
 	<title>pSimpleGallery $dir</title>
 	<style>
@@ -109,10 +112,7 @@ $htmlstart = "
 	</style>
 	
 	$htmlscripts
-    
-    <!-- 
-                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
-    -->
+
 </head>
 <body>";
 print $htmlstart;
