@@ -20,7 +20,8 @@ $thisfilename = pathinfo($thisfilelocation)['basename'];
 $thisfilepath = str_replace($thisfilename, "",$thisfilelocation);
 
 $workdir = getcwd(); // no trailing '/'
-$webdir = $_SERVER['SERVER_NAME'].$thisfilepath;
+//$webdir = $_SERVER['SERVER_NAME'].$thisfilepath; // removed the server name to make links more... relative!
+$webdir = $thisfilepath;
 
 // check if cache folder is available
 $cachefolder = "cache"; // folder name where cache images thumbnails
@@ -86,9 +87,6 @@ if ($thumb) {
 $htmlstart = "
 <!DOCTYPE html>
 <html>
-    <!-- 
-                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
-    -->
 <head>
 	<title>pSimpleGallery $dir</title>
 	<style>
@@ -112,7 +110,10 @@ $htmlstart = "
 	</style>
 	
 	$htmlscripts
-
+    
+    <!-- 
+                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
+    -->
 </head>
 <body>";
 print $htmlstart;
@@ -170,7 +171,7 @@ if ($handle = opendir($fulldir)) {
   foreach($directories as $entry) {
     if(is_file($dir_path.$entry) AND ((strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")) AND !strpos(strtolower($entry),".filepart")))  {
 		print '<div class="file">';
-		print "<a href='//".get_file($dir_path.$entry)['link']."' class='simplebox'>";
+		print "<a href='".get_file($dir_path.$entry)['link']."' class='simplebox'>";
 		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
 		// print get_file($dir_path.$entry)['name']; // useless...
 		print substr($entry,0,15);
@@ -182,6 +183,11 @@ if ($handle = opendir($fulldir)) {
   print "</div>";
   }
   
+ 
+$bodyend = "</body></html>";
+print $bodyend;
+ 
+
 function get_file($entry) {
 	global $workdir, $webdir, $dir;
 	if (file_exists($entry)) {
@@ -198,10 +204,8 @@ function get_file($entry) {
 		return false;
 		}
 }
- 
-$bodyend = "</body></html>";
-print $bodyend;
- 
+
+
 function human_filesize($bytes, $decimals = 2) {
   $sz = 'BKMGTP';
   $factor = floor((strlen($bytes) - 1) / 3);
@@ -215,9 +219,32 @@ function generate_thumb($filename) {
 	$width = 200;
 	$height = 160;
 
+	// read EXIF data
+	$exif = exif_read_data($filename);
+	
+	// crea $image dal file
+	$image = imagecreatefromjpeg($filename);
+	
+	// rotate image if needed
+	if (!empty($exif['Orientation'])) {
+		switch ($exif['Orientation']) {
+			case 3:
+				$image = imagerotate($image, 180, 0);
+			break;
 
+			case 6:
+				$image = imagerotate($image, -90, 0);
+			break;
+
+			case 8:
+				$image = imagerotate($image, 90, 0);
+			break;
+		}
+	} 
+	
 	// Get new dimensions
-	list($width_orig, $height_orig) = getimagesize($filename);
+	$width_orig = imagesx($image);
+	$height_orig = imagesy($image);
 
 	$ratio_orig = $width_orig/$height_orig;
 
@@ -228,13 +255,13 @@ function generate_thumb($filename) {
 		$height = $width/$ratio_orig;
 	}
 
-	// Resample
+	// create empty image
 	$image_p = imagecreatetruecolor($width, $height);
-	$image = imagecreatefromjpeg($filename);
+	
+	// fill empty image with cropped original
 	imagecopyresampled($image_p, $image, 0, 0, 0, 0, $width, $height, $width_orig, $height_orig);
 
 	// Output
-	//imagejpeg($image_p, null, 100);
 	return $image_p;
 	}
 	
