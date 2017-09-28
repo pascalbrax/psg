@@ -88,6 +88,13 @@ $htmlstart = "
 <!DOCTYPE html>
 <html>
 <head>
+
+	<!-- 
+
+		If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
+	
+	-->
+
 	<title>pSimpleGallery $dir</title>
 	<style>
 	body {
@@ -110,10 +117,6 @@ $htmlstart = "
 	</style>
 	
 	$htmlscripts
-    
-    <!-- 
-                    If you like this gallery script, you can download it here: https://github.com/pascalbrax/psg
-    -->
 </head>
 <body>";
 print $htmlstart;
@@ -169,17 +172,32 @@ if ($handle = opendir($fulldir)) {
   // image list
   print "<div id=\"imageSet\">";
   foreach($directories as $entry) {
-    if(is_file($dir_path.$entry) AND ((strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")) AND !strpos(strtolower($entry),".filepart")))  {
+	if(is_file($dir_path.$entry) AND ((strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")) AND !strpos(strtolower($entry),".filepart")))  {
 		print '<div class="file">';
 		print "<a href='".get_file($dir_path.$entry)['link']."' class='simplebox'>";
 		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
-		// print get_file($dir_path.$entry)['name']; // useless...
-		print substr($entry,0,15);
+		
+		print substr($entry,0,15); // filename up to 15 chars
 		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
 		print "</div>\n";
+	  	}
 
-      }
+	  if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".mp4") AND !strpos(strtolower($entry),".filepart")))  {
+		print '<div class="file">';
+		
+		print "	<video width='200' height='160'>
+					<source src='".get_file($dir_path.$entry)['link']."' type='video/mp4'>
+					No video support
+				</video>";
+		print "<a href='".get_file($dir_path.$entry)['link']."' class='simpleboxvideo'>";
+		
+		print substr($entry,0,15); // filename up to 15 chars
+		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
+		print "</div>\n";
+		}
+		  
 	}
+
   print "</div>";
   }
   
@@ -284,4 +302,6 @@ function add_icon($type) {
 /* pascal brax 2014 */
   
 ?>
+
+
 
