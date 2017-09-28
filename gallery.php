@@ -24,7 +24,7 @@ $workdir = getcwd(); // no trailing '/'
 $webdir = $thisfilepath;
 
 // video support
-$video = true;
+$video = false;
 
 // check if cache folder is available
 $cachefolder = "cache"; // folder name where cache images thumbnails
