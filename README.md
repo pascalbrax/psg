@@ -7,7 +7,7 @@ Easy and simple gallery in one single PHP file with (almost) zero-configuration.
 Demo: http://www.scavenger.ch/images/
 
 **Installation:**
-* Make sure you have at least PHP 5.3 and GD library installed.
+* Make sure you have at least PHP 5.3 and EXIF extension and GD library installed.
 * Download ```gallery.php``` and put it in your images folder on your webserver.
 * Done.
 
