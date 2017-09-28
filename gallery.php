@@ -23,6 +23,9 @@ $workdir = getcwd(); // no trailing '/'
 //$webdir = $_SERVER['SERVER_NAME'].$thisfilepath; // removed the server name to make links more... relative!
 $webdir = $thisfilepath;
 
+// video support
+$video = true;
+
 // check if cache folder is available
 $cachefolder = "cache"; // folder name where cache images thumbnails
 $cache = false;
@@ -182,7 +185,7 @@ if ($handle = opendir($fulldir)) {
 		print "</div>\n";
 	  	}
 
-	  if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".mp4") AND !strpos(strtolower($entry),".filepart")))  {
+	  if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".mp4") AND !strpos(strtolower($entry),".filepart")) AND $video)  {
 		print '<div class="file">';
 		
 		print "	<video width='200' height='160'>
