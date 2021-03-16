@@ -5,6 +5,8 @@ Easy and simple gallery in one single PHP file with (almost) zero-configuration.
 
 Demo: http://www.scavenger.ch/images/
 
+![Screenshot](https://raw.githubusercontent.com/pascalbrax/psg/master/screenshot.png)
+
 **Installation:**
 * Download ```gallery.php``` and put it in your images main folder on your webserver.
 * Done.
