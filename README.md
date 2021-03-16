@@ -2,14 +2,17 @@ psg
 ===
 
 Easy and simple gallery in one single PHP file with (almost) zero-configuration.
-*GD Library is required.*
 
 Demo: http://www.scavenger.ch/images/
 
 **Installation:**
-* Make sure you have at least PHP 5.3 and EXIF extension and GD library installed.
-* Download ```gallery.php``` and put it in your images folder on your webserver.
+* Download ```gallery.php``` and put it in your images main folder on your webserver.
 * Done.
+
+**Requirements:**
+* ```PHP``` version 5.3 at least.
+* ```GD Library``` extension for PHP
+* ```EXIF``` extension for PHP
 
 **Optional:**
 * Download [pSimpleBox] and put ```psimplebox.js``` in the same folder to get a nice [Lighbox] style effect (no need to edit any file).
