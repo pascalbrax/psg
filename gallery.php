@@ -1,341 +1,763 @@
 <?php
+declare(strict_types=1);
 
-error_reporting(E_ERROR | E_PARSE);
+$version            = '2.0';
+$version_raw_url    = 'https://raw.githubusercontent.com/pascalbrax/psg/master/latest_version';
+$version_update_url = 'https://github.com/pascalbrax/psg';
 
-// version control and notification 1/2
-$version = 1.10;
-$version_url_check = "https://raw.githubusercontent.com/pascalbrax/psg/master/latest_version";
-$version_update = "https://github.com/pascalbrax/psg";
+// ── Extension availability ─────────────────────────────────────────────────────
+$has_gd   = extension_loaded('gd');
+$has_exif = extension_loaded('exif');
 
-// this is where we catch variables sent to this page.
-$dir = filter_var($_REQUEST['dir'],FILTER_SANITIZE_STRING);
-$thumb = filter_var($_REQUEST['thumb'],FILTER_SANITIZE_STRING);
-
-// fix stuff & block directory traversal
-if (strstr($dir,"..") OR ($dir == "/")) {
-  $dir = "";
-  }
-if (strstr($thumb,"..") OR ($thumb == "/")) {
-  unset ($thumb);
-  }
-
-// autodiscover some stuff...
-$thisfilelocation = $_SERVER['PHP_SELF']; // result: /dir/thisfile.php 
-$thisfilename = pathinfo($thisfilelocation)['basename']; //  result: thisfile.php
-$thisfilepath = str_replace($thisfilename, "",$thisfilelocation); //  result: /dir/
-$workdir = getcwd(); // get current working dir with no trailing '/' 
-$webdir = $thisfilepath;
-
-// video support
-$video = false;
-
-// check if cache folder is available
-$cachefolder = "cache"; // folder name where cache images thumbnails
-$cache = false;
-if (file_exists($cachefolder)) {
-	// cache folder is available
-	if (is_writable($cachefolder)) {
-		// cache folder is writable
-		$cache = true;
-		}
-	}
-
-// enable psimplebox (lightbox clone)
-if (file_exists("psimplebox.js")) {
-	// add jquery script src and simplebox to html
-	$htmlscripts = "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js\"></script>\n
-	<script src=\"".$thisfilepath."psimplebox.js\"></script>\n"; 
-	}
-
-if ($thumb) {
-	// if we need a thumbnail	
-	
-	// generate headers 
-	$expire=60*60*24*1; // seconds, minutes, hours, days 
-	header('Pragma: public');
-	header('Cache-Control: maxage='.$expire);
-	header('Expires: ' . gmdate('D, d M Y H:i:s', time()+$expire) . ' GMT');
-	header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' CET');
-	header("Content-Type: image/jpeg");
-
-	// generate image file path
-	$imagefilename = $workdir.$dir."/".$thumb;
-	
-	// check if there is a cache folder
-	if ($cache) {
-		// check if the image thumb is available in cache
-		$cachedfilename = $cachefolder."/thumb".str_replace("/","+",$dir)."+".$thumb;
-		
-		if (file_exists($cachedfilename)) {
-			// read thumbnail from cache
-			readfile($cachedfilename);
-		} else {
-			// cache available, but file not exist yet so we create it
-			imagejpeg(generate_thumb($imagefilename),$cachedfilename);
-            readfile($cachedfilename);
-		}
-
-	} else {
-		// cache not available, generate_thumb on the fly
-		
-		imagejpeg(generate_thumb($imagefilename));
-	}
-
-	exit();
-	}
-
-	
-// start webpage
-$htmlstart = "
-<!DOCTYPE html>
-<html>
-<head>
-
-	<!-- 
-
-		If you like this gallery script, you can download it here: $version_update
-	
-	-->
-
-
-	<title>pSimpleGallery $dir</title>
-	<style>
-	body {
-		background-color: #666699;
-		}	
-	div.nav {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:medium;background-color:#a3a3c2;margin-bottom:10px;
-		}
-	div.nav:hover {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:medium;background-color:#c2c2d6;margin-bottom:10px;
-		}
-	div.dir {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:medium;background-color:#a3a3c2;float:left;width:200px;height:180px;text-align:center;margin-bottom:15px; margin-right:10px;
-		}
-	div.dir:hover {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:medium;background-color:#c2c2d6;float:left;width:200px;height:180px;text-align:center;margin-bottom:15px; margin-right:10px;
-		}
-	div.file {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:small;background-color:#a3a3c2;float:left;width:200px;height:180px;text-align:center;margin-bottom:15px; margin-right:10px;
-		}
-	div.file:hover {
-		color:black;font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial;font-size:small;background-color:#c2c2d6;float:left;width:200px;height:180px;text-align:center;margin-bottom:15px; margin-right:10px;
-		}
-
-	a:link {color:black;text-decoration:none;}
-	a:visited {color:black;text-decoration:none;}
-	a:hover {color:blue;text-decoration:none;}
-	a:active {color:black;text-decoration:none;}
-	</style>
-	
-	$htmlscripts
-</head>
-<body>";
-print $htmlstart;
-
-
-// version control and notification 2/2
-
-if ($version_online = file_get_contents($version_url_check)) {
-	if ($version_online > $version) {
-		echo "<div style='font-family:Trebuchet MS,Tahoma,Helvetica,Verdana,Arial'>
-		<a href='$version_update'>New version available.</a>
-		</div>
-		<br />";
-	}
+// ── Input sanitization ─────────────────────────────────────────────────────────
+function sanitize_dir_path(string $v): string {
+    $v = str_replace(["\0", "\r", "\n", "\\"], '', $v);
+    if (str_contains($v, '..')) return '';
+    if ($v !== '' && !preg_match('#^[a-zA-Z0-9/_\-. ]*$#', $v)) return '';
+    return trim($v, '/');
 }
 
-// echo "<pre> version online: $version_online local version: $version</pre>"; // debug version
+function sanitize_filename(string $v): string {
+    $v = str_replace(["\0", "\r", "\n", "/", "\\"], '', $v);
+    if (str_contains($v, '..')) return '';
+    if ($v !== '' && !preg_match('#^[a-zA-Z0-9_\-. ]+$#', $v)) return '';
+    return $v;
+}
 
+$dir   = sanitize_dir_path($_GET['dir']   ?? '');
+$thumb = sanitize_filename($_GET['thumb'] ?? '');
 
-// This merge together the base directory and the user's requested folder.
-$fulldir = $workdir.$dir;
+// ── Path setup ─────────────────────────────────────────────────────────────────
+$script_name = basename($_SERVER['PHP_SELF']);
+$script_url  = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
+$workdir     = str_replace('\\', '/', rtrim(getcwd(), '/\\'));
+$cachefolder = 'cache';
+$cache       = is_dir($cachefolder) && is_writable($cachefolder);
+$image_exts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
-// path tree
-if ($handle = opendir($fulldir)) {
-  if ($dir) {
-    $i = 1;
-    $dirarray = explode("/",$dir);
-	print "<div class='nav'>";
-    foreach ($dirarray as &$folder) {
-      if (!$folder) { $folder = "root"; } // human name to root
-      print '<a href="?dir=';
-      for($s = 0; $s < $i; $s++) {
-        if ($s) { print $dirarray[$s]; }
-        if ($dirarray[$s] != $folder) { print "/"; } // add '/' in the right places for the GET variables
-        }
-      print '">';
-	  print '<img width="12" height="12" alt="'.$folder.'" src="'; // start img tag
-	  print add_icon("nav"); // insert image data
-	  print '" />&nbsp;'; // close img tag (and add a space)
-      print "$folder";
-      print "</a>";
-      $i++;
-      }
-	print "</div>";
+function resolve_path(string $base, string $sub): string|false {
+    $path = $sub !== '' ? $base . '/' . $sub : $base;
+    $real = str_replace('\\', '/', (string) realpath($path));
+    if ($real === '' || $real === '/') return false;
+    if ($real !== $base && !str_starts_with($real, $base . '/')) return false;
+    return $real;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function e(string $s): string {
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function human_filesize(int $bytes, int $dec = 1): string {
+    $units  = ['B', 'KB', 'MB', 'GB'];
+    $factor = min(3, max(0, (int) floor((strlen((string) max(1, $bytes)) - 1) / 3)));
+    return sprintf("%.{$dec}f %s", $bytes / (1024 ** $factor), $units[$factor]);
+}
+
+function get_image_meta(string $path, bool $has_exif): array {
+    $m = ['date' => '', 'camera' => ''];
+    if (!$has_exif) return $m;
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg'], true)) return $m;
+    $exif = @exif_read_data($path);
+    if (!$exif) return $m;
+    if (!empty($exif['DateTimeOriginal'])) {
+        $dt = DateTime::createFromFormat('Y:m:d H:i:s', $exif['DateTimeOriginal']);
+        if ($dt) $m['date'] = $dt->format('d M Y');
     }
-  else { 
-    print '<div class="nav"><img alt="root" width="12" height="12" src="'.add_icon("nav").'" />&nbsp;root</div>'; 
-	}
-
-
-  // directory list with scandir
-  $dir_path = $fulldir."/";
-  $exclude_list = array(".", "..",$cachefolder);
-  $directories = array_diff(scandir($dir_path), $exclude_list);
-
-  foreach($directories as $entry) {
-    if(is_dir($dir_path.$entry)) {
-      
-	  print '<div class="dir">';
-      print '<a href="'.$thisfilename.'?dir='.urlencode($dir."/".$entry).'">';
-		print "<img alt='$entry' src='".add_icon("dir")."'><br>";
-		print substr($entry,0,18);
-	  print '</a>';
-	  print "</div>\n";
-      }
-	}
-  
-  // image list
-  print "<div id=\"imageSet\">";
-  foreach($directories as $entry) {
-	if(is_file($dir_path.$entry) AND ((strpos(strtolower($entry),".jpg") OR strpos(strtolower($entry),".jpeg") OR strpos(strtolower($entry),".png")) AND !strpos(strtolower($entry),".filepart")))  {
-		print '<div class="file">';
-		print "<a href='".get_file($dir_path.$entry)['link']."' class='simplebox'>";
-		print "<img alt='$entry' src='".$thisfilename."?dir=$dir&thumb=$entry"."'><br>";
-		
-		print substr($entry,0,18); // filename up to 18 chars
-		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
-		print "</div>\n";
-	  	}
-
-	  if(is_file($dir_path.$entry) AND (strpos(strtolower($entry),".mp4") AND !strpos(strtolower($entry),".filepart")) AND $video)  {
-		print '<div class="file">';
-		
-		print "	<video width='200' height='160'>
-					<source src='".get_file($dir_path.$entry)['link']."' type='video/mp4'>
-					No video support
-				</video>";
-		print "<a href='".get_file($dir_path.$entry)['link']."' class='simpleboxvideo'>";
-		
-		print substr($entry,0,15); // filename up to 15 chars
-		print " (".human_filesize(get_file($dir_path.$entry)['size']).")</a>";
-		print "</div>\n";
-		}
-		  
-	}
-
-  print "</div>";
-  }
-  
- 
-$bodyend = "</body></html>";
-print $bodyend;
- 
-
-function get_file($entry) {
-	global $workdir, $webdir, $dir;
-	if (file_exists($entry)) {
-		$name = pathinfo($entry)['basename'];
-		$folder = pathinfo($entry)['dirname'];
-		$fixed_dir = substr($dir,1)."/"; // move '/' from start to end
-		$link = $webdir.$fixed_dir.$name;
-		$size = filesize($entry);
-		$updated = date ("d/m/Y", filemtime($dir_path.$entry));
-		
-		return compact('name','folder','link','size','updated');
-		}
-	else {
-		return false;
-		}
+    $make  = trim((string) ($exif['Make']  ?? ''));
+    $model = trim((string) ($exif['Model'] ?? ''));
+    if ($make && str_starts_with($model, $make)) $model = trim(substr($model, strlen($make)));
+    if ($make || $model) $m['camera'] = trim("$make $model");
+    return $m;
 }
 
+function generate_thumb(string $path, bool $has_exif): \GdImage|false {
+    $tw = 220; $th = 165;
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $src = match ($ext) {
+        'png'  => @imagecreatefrompng($path),
+        'gif'  => @imagecreatefromgif($path),
+        'webp' => @imagecreatefromwebp($path),
+        default => @imagecreatefromjpeg($path),
+    };
+    if (!$src) return false;
 
-function human_filesize($bytes, $decimals = 2) {
-  $sz = 'BKMGTP';
-  $factor = floor((strlen($bytes) - 1) / 3);
-  return sprintf("%.{$decimals}f", $bytes / pow(1024, $factor)) . @$sz[$factor];
-  } 
+    if ($has_exif && in_array($ext, ['jpg', 'jpeg'], true)) {
+        $exif = @exif_read_data($path);
+        if (!empty($exif['Orientation'])) {
+            $src = match ((int) $exif['Orientation']) {
+                3 => imagerotate($src, 180, 0),
+                6 => imagerotate($src, -90, 0),
+                8 => imagerotate($src,  90, 0),
+                default => $src,
+            };
+        }
+    }
 
+    $ow = imagesx($src); $oh = imagesy($src);
+    if ($ow / $oh > $tw / $th) { $th = (int) round($tw * $oh / $ow); }
+    else                        { $tw = (int) round($th * $ow / $oh); }
 
-function generate_thumb($filename) {
+    $dst = imagecreatetruecolor($tw, $th);
+    if (in_array($ext, ['png', 'gif', 'webp'], true)) {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+    }
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $tw, $th, $ow, $oh);
+    imagedestroy($src);
+    return $dst;
+}
 
-	// Set a maximum height and width
-	$width = 200;
-	$height = 160;
+// ── Thumbnail endpoint ─────────────────────────────────────────────────────────
+if ($thumb !== '') {
+    if (!$has_gd) {
+        http_response_code(503);
+        header('Content-Type: image/svg+xml');
+        echo '<svg xmlns="http://www.w3.org/2000/svg" width="220" height="165"><rect width="220" height="165" fill="#e5e5f0"/>'
+           . '<text x="110" y="89" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#888">GD unavailable</text></svg>';
+        exit();
+    }
 
-	// read EXIF data
-	$exif = exif_read_data($filename);
-	
-	// crea $image dal file
-	if (strpos(strtolower($filename),".png")) { 
-		$image = imagecreatefrompng($filename); // PNG
-	} else {
-		$image = imagecreatefromjpeg($filename); // JPG
-	}
-	
-	
-	
-	// rotate image if needed
-	if (!empty($exif['Orientation'])) {
-		switch ($exif['Orientation']) {
-			case 3:
-				$image = imagerotate($image, 180, 0);
-			break;
+    $fulldir  = resolve_path($workdir, $dir);
+    if ($fulldir === false) { http_response_code(403); exit(); }
 
-			case 6:
-				$image = imagerotate($image, -90, 0);
-			break;
+    $img_real = str_replace('\\', '/', (string) realpath($fulldir . '/' . $thumb));
+    if ($img_real === '' || !str_starts_with($img_real, $workdir . '/')) {
+        http_response_code(403); exit();
+    }
+    $ext = strtolower(pathinfo($img_real, PATHINFO_EXTENSION));
+    if (!in_array($ext, $image_exts, true)) { http_response_code(403); exit(); }
 
-			case 8:
-				$image = imagerotate($image, 90, 0);
-			break;
-		}
-	} 
-	
-	// Get new dimensions
-	$width_orig = imagesx($image);
-	$height_orig = imagesy($image);
+    header('Content-Type: image/jpeg');
+    header('Cache-Control: public, max-age=86400');
+    header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 86400) . ' GMT');
+    header('X-Content-Type-Options: nosniff');
 
-	$ratio_orig = $width_orig/$height_orig;
+    $cfile = $cache ? "{$cachefolder}/t_" . md5("{$dir}/{$thumb}") . '.jpg' : null;
+    if ($cfile && file_exists($cfile)) { readfile($cfile); exit(); }
 
-	if ($width/$height > $ratio_orig) {
-		$width = $height*$ratio_orig;
-		} 
-	else {
-		$height = $width/$ratio_orig;
-	}
+    $img = generate_thumb($img_real, $has_exif);
+    if ($img) {
+        if ($cfile) { imagejpeg($img, $cfile, 85); readfile($cfile); }
+        else        { imagejpeg($img, null, 85); }
+        imagedestroy($img);
+    }
+    exit();
+}
 
-	// create empty image
-	$image_p = imagecreatetruecolor($width, $height);
-	
-	// fill empty image with cropped original
-	imagecopyresampled($image_p, $image, 0, 0, 0, 0, $width, $height, $width_orig, $height_orig);
+// ── Directory listing ──────────────────────────────────────────────────────────
+$fulldir = resolve_path($workdir, $dir);
+if ($fulldir === false) { $fulldir = $workdir; $dir = ''; }
 
-	// destroy old image 
-	imagedestroy($image);
+$dir_path = $fulldir . '/';
+$entries  = array_diff(scandir($dir_path, SCANDIR_SORT_ASCENDING) ?: [], ['.', '..', $cachefolder, $script_name]);
+$subdirs  = $images = [];
 
-	// Output
-	return $image_p;
-	
-	}
-	
-function add_icon($type) {
-	if ($type == "nav") {
-		$icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAHBJREFUeNqU0TEKwCAUA9D2Sp5AXUQQ3cSbewgHN8Ep8tdqaRr44+NDcgO4fkXA87TWcM6BBtZajDHO6A1IBIUQQANJaw0xRtBgQwyQ1FqhlAIFeu/w3nMftra+WkopcS3NOZFz5nYwxqCUclx6CTAAwWgxaW7qSDsAAAAASUVORK5CYII%3D";
-		}
-	if ($type == "dir") {
-		$icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAACWBAMAAABp8toqAAAABGdBTUEAALGOfPtRkwAAACBjSFJNAACHDwAAjA8AAP1SAACBQAAAfXkAAOmLAAA85QAAGcxzPIV3AAAKL2lDQ1BJQ0MgUHJvZmlsZQAASMedlndUVNcWh8+9d3qhzTACUobeu8AA0nuTXkVhmBlgKAMOMzSxIaICEUVEmiJIUMSA0VAkVkSxEBRUsAckCCgxGEVULG9G1ouurLz38vL746xv7bP3ufvsvc9aFwCSpy+XlwZLAZDKE/CDPJzpEZFRdOwAgAEeYIApAExWRrpfsHsIEMnLzYWeIXICXwQB8HpYvAJw09AzgE4H/5+kWel8geiYABGbszkZLBEXiDglS5Auts+KmBqXLGYYJWa+KEERy4k5YZENPvsssqOY2ak8tojFOaezU9li7hXxtkwhR8SIr4gLM7mcLBHfErFGijCVK+I34thUDjMDABRJbBdwWIkiNhExiR8S5CLi5QDgSAlfcdxXLOBkC8SXcklLz+FzExIFdB2WLt3U2ppB9+RkpXAEAsMAJiuZyWfTXdJS05m8HAAW7/xZMuLa0kVFtjS1trQ0NDMy/apQ/3Xzb0rc20V6Gfi5ZxCt/4vtr/zSGgBgzIlqs/OLLa4KgM4tAMjd+2LTOACApKhvHde/ug9NPC+JAkG6jbFxVlaWEZfDMhIX9A/9T4e/oa++ZyQ+7o/y0F058UxhioAurhsrLSVNyKdnpDNZHLrhn4f4Hwf+dR4GQZx4Dp/DE0WEiaaMy0sQtZvH5gq4aTw6l/efmvgPw/6kxbkWidL4EVBjjIDUdSpAfu0HKAoRINH7xV3/o2+++DAgfnnhKpOLc//vN/1nwaXiJYOb8DnOJSiEzhLyMxf3xM8SoAEBSAIqkAfKQB3oAENgBqyALXAEbsAb+IMQEAlWAxZIBKmAD7JAHtgECkEx2An2gGpQBxpBM2gFx0EnOAXOg0vgGrgBboP7YBRMgGdgFrwGCxAEYSEyRIHkIRVIE9KHzCAGZA+5Qb5QEBQJxUIJEA8SQnnQZqgYKoOqoXqoGfoeOgmdh65Ag9BdaAyahn6H3sEITIKpsBKsBRvDDNgJ9oFD4FVwArwGzoUL4B1wJdwAH4U74PPwNfg2PAo/g+cQgBARGqKKGCIMxAXxR6KQeISPrEeKkAqkAWlFupE+5CYyiswgb1EYFAVFRxmibFGeqFAUC7UGtR5VgqpGHUZ1oHpRN1FjqFnURzQZrYjWR9ugvdAR6AR0FroQXYFuQrejL6JvoyfQrzEYDA2jjbHCeGIiMUmYtZgSzD5MG+YcZhAzjpnDYrHyWH2sHdYfy8QKsIXYKuxR7FnsEHYC+wZHxKngzHDuuCgcD5ePq8AdwZ3BDeEmcQt4Kbwm3gbvj2fjc/Cl+EZ8N/46fgK/QJAmaBPsCCGEJMImQiWhlXCR8IDwkkgkqhGtiYFELnEjsZJ4jHiZOEZ8S5Ih6ZFcSNEkIWkH6RDpHOku6SWZTNYiO5KjyALyDnIz+QL5EfmNBEXCSMJLgi2xQaJGokNiSOK5JF5SU9JJcrVkrmSF5AnJ65IzUngpLSkXKabUeqkaqZNSI1Jz0hRpU2l/6VTpEukj0lekp2SwMloybjJsmQKZgzIXZMYpCEWd4kJhUTZTGikXKRNUDFWb6kVNohZTv6MOUGdlZWSXyYbJZsvWyJ6WHaUhNC2aFy2FVko7ThumvVuitMRpCWfJ9iWtS4aWzMstlXOU48gVybXJ3ZZ7J0+Xd5NPlt8l3yn/UAGloKcQqJClsF/hosLMUupS26WspUVLjy+9pwgr6ikGKa5VPKjYrzinpKzkoZSuVKV0QWlGmabsqJykXK58RnlahaJir8JVKVc5q/KULkt3oqfQK+m99FlVRVVPVaFqveqA6oKatlqoWr5am9pDdYI6Qz1evVy9R31WQ0XDTyNPo0XjniZek6GZqLlXs09zXktbK1xrq1an1pS2nLaXdq52i/YDHbKOg84anQadW7oYXYZusu4+3Rt6sJ6FXqJejd51fVjfUp+rv09/0ABtYG3AM2gwGDEkGToZZhq2GI4Z0Yx8jfKNOo2eG2sYRxnvMu4z/mhiYZJi0mhy31TG1Ns037Tb9HczPTOWWY3ZLXOyubv5BvMu8xfL9Jdxlu1fdseCYuFnsdWix+KDpZUl37LVctpKwyrWqtZqhEFlBDBKGJet0dbO1husT1m/tbG0Edgct/nN1tA22faI7dRy7eWc5Y3Lx+3U7Jh29Xaj9nT7WPsD9qMOqg5MhwaHx47qjmzHJsdJJ12nJKejTs+dTZz5zu3O8y42Lutczrkirh6uRa4DbjJuoW7Vbo/c1dwT3FvcZz0sPNZ6nPNEe/p47vIc8VLyYnk1e816W3mv8+71IfkE+1T7PPbV8+X7dvvBft5+u/0erNBcwVvR6Q/8vfx3+z8M0A5YE/BjICYwILAm8EmQaVBeUF8wJTgm+Ejw6xDnkNKQ+6E6ocLQnjDJsOiw5rD5cNfwsvDRCOOIdRHXIhUiuZFdUdiosKimqLmVbiv3rJyItogujB5epb0qe9WV1QqrU1afjpGMYcaciEXHhsceiX3P9Gc2MOfivOJq42ZZLqy9rGdsR3Y5e5pjxynjTMbbxZfFTyXYJexOmE50SKxInOG6cKu5L5I8k+qS5pP9kw8lf0oJT2lLxaXGpp7kyfCSeb1pymnZaYPp+umF6aNrbNbsWTPL9+E3ZUAZqzK6BFTRz1S/UEe4RTiWaZ9Zk/kmKyzrRLZ0Ni+7P0cvZ3vOZK577rdrUWtZa3vyVPM25Y2tc1pXvx5aH7e+Z4P6hoINExs9Nh7eRNiUvOmnfJP8svxXm8M3dxcoFWwsGN/isaWlUKKQXziy1XZr3TbUNu62ge3m26u2fyxiF10tNimuKH5fwiq5+o3pN5XffNoRv2Og1LJ0/07MTt7O4V0Ouw6XSZfllo3v9tvdUU4vLyp/tSdmz5WKZRV1ewl7hXtHK30ru6o0qnZWva9OrL5d41zTVqtYu712fh9739B+x/2tdUp1xXXvDnAP3Kn3qO9o0GqoOIg5mHnwSWNYY9+3jG+bmxSaips+HOIdGj0cdLi32aq5+YjikdIWuEXYMn00+uiN71y/62o1bK1vo7UVHwPHhMeefh/7/fBxn+M9JxgnWn/Q/KG2ndJe1AF15HTMdiZ2jnZFdg2e9D7Z023b3f6j0Y+HTqmeqjkte7r0DOFMwZlPZ3PPzp1LPzdzPuH8eE9Mz/0LERdu9Qb2Dlz0uXj5kvulC31OfWcv210+dcXmysmrjKud1yyvdfRb9Lf/ZPFT+4DlQMd1q+tdN6xvdA8uHzwz5DB0/qbrzUu3vG5du73i9uBw6PCdkeiR0TvsO1N3U+6+uJd5b+H+xgfoB0UPpR5WPFJ81PCz7s9to5ajp8dcx/ofBz++P84af/ZLxi/vJwqekJ9UTKpMNk+ZTZ2adp++8XTl04ln6c8WZgp/lf619rnO8x9+c/ytfzZiduIF/8Wn30teyr889GrZq565gLlHr1NfL8wXvZF/c/gt423fu/B3kwtZ77HvKz/ofuj+6PPxwafUT5/+BQOY8/xvJtwPAAAAMFBMVEUAAACcnMWtQr2tQjqEvUrWxUopGXspYzopzjopa70pzr3Wxc6E1s6MjKUpEAAAGQAzPXoKAAAACXBIWXMAAAsTAAALEwEAmpwYAAABZklEQVRo3u3bMU7EMBAF0OlckcXVVt69IlSpcke7chWSVFSgvQASsB2Wx2TMMEX0fx892XG+UnjIGwSIJTKP1SRNJFM9LukhYWUQ+tBDFmKT1JAnHtm0kMAb9GCBOC3kTPQ615LXX5Aw706mN26NaxPJN9ofxy+yhbyQJBuL+JFHwk2EJB7JPBJFxsAbPvDIKkJcFxJExvcHV2/hqdXCXwef3sfdme4PVNfYaOEr0eQF6WrhKDP8hd9KvoWjExl9LRw3kdHXwktSQ/haySKDPVttZPbCFuYzsEji/z+k4RFpC/chwhbuQxYyQFYDJJABcrZArhZI1EOcBTIAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAXJUxAEBAgTIoZBHC+RigSheG22M66hdF6ZnHtF7840RKrX9+rFbBdK68y/JqTnWFlSUUzEyUSA+5PHvKQcNSuRfchTE+083+nz0RdpTlgAAAABJRU5ErkJggg==";
-		}
-	if ($type == "file") {
-		$icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAABH0lEQVR4nI3OMU7DQBCF4X/tNZAGKm5Ag8QZOAA93CBNWrpcAYmWhpYLUKRJwQGooQYpSAGEQMHeXa+9MxRGCDsUvGak2f1mxgBM5kvlj5wf7rK1mZu1h/FsoY+vXkVVYyu6fK91PFvoZL7Ul7fQG5YBhBAZ2YwkigGMQrnyTA62Ob15onTND7IAPgQEpU7SfY6J1Yfj4blkr4Djyzv6wNXYjZy6EcAQRQgucHG7AANmRB9UlcO3qbvPGLLCcHayTytCm5Tp9f0QeFwUbAaKIc8MOyMLQGiEqvJDEAiNkGVd0wD6XauYKKvQB845XGyx+bpwdUtVugHwNT4Jhf6e3cU3Ce+GG3x3UrIQG6H08dsoRW4Jvu6D8tNxNL3iP/kC9mepySQNpKwAAAAASUVORK5CYII%3D";
-		}
-	if ($type == "empty") {
-		$icon = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-		}	
-	return $icon;
-	}
+foreach ($entries as $entry) {
+    $p = $dir_path . $entry;
+    if (is_dir($p)) {
+        $subdirs[] = $entry;
+    } elseif (is_file($p)) {
+        $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+        if (in_array($ext, $image_exts, true) && !str_ends_with(strtolower($entry), '.filepart'))
+            $images[] = $entry;
+    }
+}
 
-/* pascal brax 2014-2021 */
-  
-?>
+$image_data = [];
+foreach ($images as $img) {
+    $p    = $dir_path . $img;
+    $meta = get_image_meta($p, $has_exif);
+    $link = $script_url . ($dir ? ltrim($dir, '/') . '/' : '') . rawurlencode($img);
+    $image_data[$img] = [
+        'link'   => $link,
+        'size'   => (int) filesize($p),
+        'date'   => $meta['date'],
+        'camera' => $meta['camera'],
+    ];
+}
+
+$js_imgs = array_values(array_map(fn($img) => [
+    'src'  => $image_data[$img]['link'],
+    'name' => $img,
+], $images));
+$js_imgs_json = json_encode($js_imgs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES);
+
+$crumbs = [['label' => 'root', 'url' => $script_name]];
+if ($dir) {
+    $acc = '';
+    foreach (explode('/', $dir) as $seg) {
+        if ($seg === '') continue;
+        $acc = $acc ? "$acc/$seg" : $seg;
+        $crumbs[] = ['label' => $seg, 'url' => $script_name . '?dir=' . rawurlencode($acc)];
+    }
+}
+
+// ── SVG icons ──────────────────────────────────────────────────────────────────
+function svg(string $t): string {
+    return match ($t) {
+        'home'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+        'folder'   => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
+        'grid'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
+        'list'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="4.5" width="10" height="2" rx="1"/><rect x="11" y="7.5" width="7" height="1.5" rx="1"/><rect x="3" y="13" width="6" height="6" rx="1"/><rect x="11" y="14.5" width="10" height="2" rx="1"/><rect x="11" y="17.5" width="7" height="1.5" rx="1"/></svg>',
+        'camera'   => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>',
+        'calendar' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>',
+        'close'    => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+        'prev'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>',
+        'next'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
+        // show moon in light mode (→ click to go dark), sun in dark mode (→ click to go light)
+        'moon'     => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>',
+        'sun'      => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7zM2 13h2a1 1 0 0 0 0-2H2a1 1 0 0 0 0 2zm18 0h2a1 1 0 0 0 0-2h-2a1 1 0 0 0 0 2zM11 2v2a1 1 0 0 0 2 0V2a1 1 0 0 0-2 0zm0 18v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-2 0zM5.99 4.58a1 1 0 0 0-1.41 1.41l1.06 1.06a1 1 0 0 0 1.41-1.41zm12.37 12.37a1 1 0 0 0-1.41 1.41l1.06 1.06a1 1 0 0 0 1.41-1.41zm1.06-10.96a1 1 0 0 0-1.41-1.41l-1.06 1.06a1 1 0 0 0 1.41 1.41zM7.05 18.36a1 1 0 0 0-1.41-1.41l-1.06 1.06a1 1 0 0 0 1.41 1.41z"/></svg>',
+        default    => '',
+    };
+}
+
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pSimpleGallery<?= $dir ? ' — ' . e($dir) : '' ?></title>
+<meta name="referrer" content="no-referrer">
+<!-- Set theme before paint to avoid flash -->
+<script>
+(function () {
+  var s = localStorage.getItem('psg_theme');
+  var d = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = s || d;
+}());
+</script>
+<style>
+/* ── Tokens ───────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #f0f0f7;
+  --surface:   #ffffff;
+  --card-hov:  #eeeef8;
+  --primary:   #5558d4;
+  --text:      #1a1a2e;
+  --muted:     #66668a;
+  --border:    #ddddf0;
+  --shd-sm:    0 1px 4px rgba(0,0,0,.07);
+  --shd:       0 4px 14px rgba(0,0,0,.11);
+  --radius:    10px;
+  --radius-sm: 6px;
+}
+/* Dark palette applied by JS (or CSS fallback below) */
+[data-theme="dark"] {
+  --bg:       #111118;
+  --surface:  #1c1c2e;
+  --card-hov: #25253a;
+  --primary:  #7b7ef0;
+  --text:     #e0e0f2;
+  --muted:    #8888aa;
+  --border:   #2e2e48;
+  --shd-sm:   0 1px 4px rgba(0,0,0,.35);
+  --shd:      0 4px 14px rgba(0,0,0,.45);
+}
+/* CSS-only fallback for prefers-color-scheme (no JS) */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --bg:       #111118;
+    --surface:  #1c1c2e;
+    --card-hov: #25253a;
+    --primary:  #7b7ef0;
+    --text:     #e0e0f2;
+    --muted:    #8888aa;
+    --border:   #2e2e48;
+    --shd-sm:   0 1px 4px rgba(0,0,0,.35);
+    --shd:      0 4px 14px rgba(0,0,0,.45);
+  }
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 16px;
+  transition: background .2s, color .2s;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+svg { display: block; }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px;
+  margin-bottom: 16px; box-shadow: var(--shd-sm);
+  transition: background .2s, border-color .2s;
+}
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: .92rem;
+}
+.breadcrumb a {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--primary); font-weight: 500;
+}
+.breadcrumb svg { width: 15px; height: 15px; flex-shrink: 0; }
+.sep { color: var(--muted); font-size: .8rem; }
+.crumb-current { font-weight: 600; }
+
+/* ── Header controls ──────────────────────────────────────────────────────── */
+.hdr-controls { display: flex; gap: 6px; align-items: center; }
+
+.view-btn, .dark-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: .82rem;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.view-btn svg, .dark-btn svg { width: 14px; height: 14px; }
+.view-btn:hover, .view-btn.active,
+.dark-btn:hover {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}
+.view-btn:focus-visible,
+.dark-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Show moon icon in light mode, sun icon in dark mode */
+.dark-btn .icon-sun  { display: none; }
+.dark-btn .icon-moon { display: flex; align-items: center; }
+[data-theme="dark"] .dark-btn .icon-sun  { display: flex; align-items: center; }
+[data-theme="dark"] .dark-btn .icon-moon { display: none; }
+/* CSS fallback */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .dark-btn .icon-sun  { display: flex; align-items: center; }
+  html:not([data-theme="light"]) .dark-btn .icon-moon { display: none; }
+}
+
+/* ── Section titles ───────────────────────────────────────────────────────── */
+.section-title {
+  font-size: .73rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted); margin: 18px 0 8px;
+}
+
+/* ── Directories ──────────────────────────────────────────────────────────── */
+.dirs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 6px;
+}
+.dir-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 10px; text-align: center;
+  color: var(--text); text-decoration: none;
+  box-shadow: var(--shd-sm); transition: box-shadow .15s, transform .15s, background .15s;
+}
+.dir-card svg { width: 36px; height: 36px; color: var(--primary); }
+.dir-card:hover {
+  background: var(--card-hov); box-shadow: var(--shd);
+  transform: translateY(-2px); text-decoration: none;
+}
+.dir-name {
+  font-size: .8rem; font-weight: 500; word-break: break-all;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+
+/* ── Gallery ──────────────────────────────────────────────────────────────── */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.gallery-list { display: none; flex-direction: column; gap: 8px; }
+.gallery.list-view .gallery-grid { display: none; }
+.gallery.list-view .gallery-list { display: flex; }
+
+/* ── Grid card ────────────────────────────────────────────────────────────── */
+.img-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; cursor: pointer;
+  box-shadow: var(--shd-sm); transition: box-shadow .15s, transform .15s;
+}
+.img-card:hover { box-shadow: var(--shd); transform: translateY(-2px); }
+.img-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.img-thumb {
+  width: 100%; aspect-ratio: 4/3; object-fit: cover;
+  display: block; background: var(--bg);
+}
+.no-thumb {
+  width: 100%; aspect-ratio: 4/3; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; color: var(--muted);
+}
+.no-thumb svg { width: 32px; height: 32px; }
+.img-info { padding: 8px 10px; }
+.img-name {
+  font-size: .8rem; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; color: var(--text);
+}
+/* Grid shows only the file size, no EXIF */
+.img-size { font-size: .72rem; color: var(--muted); margin-top: 3px; }
+
+/* ── List row ─────────────────────────────────────────────────────────────── */
+.img-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; cursor: pointer;
+  box-shadow: var(--shd-sm); transition: background .15s, box-shadow .15s;
+}
+.img-row:hover { background: var(--card-hov); box-shadow: var(--shd); }
+.img-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.img-row-thumb {
+  width: 80px; height: 60px; object-fit: cover;
+  border-radius: var(--radius-sm); flex-shrink: 0; background: var(--bg);
+}
+.img-row-thumb.no-thumb { aspect-ratio: unset; }
+.img-row-details { flex: 1; min-width: 0; }
+.img-row-name {
+  font-size: .88rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.img-row-meta {
+  font-size: .76rem; color: var(--muted); margin-top: 5px;
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.meta-row { display: inline-flex; align-items: center; gap: 4px; }
+.meta-row svg { width: 11px; height: 11px; flex-shrink: 0; }
+.img-row-size { font-size: .76rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.empty { padding: 40px; text-align: center; color: var(--muted); font-size: .9rem; }
+
+/* ── Lightbox ─────────────────────────────────────────────────────────────── */
+.lightbox {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.92); z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.lightbox.open { display: flex; }
+.lb-img {
+  max-width: min(95vw, 1280px); max-height: 85vh;
+  object-fit: contain; border-radius: 4px; display: block;
+}
+.lb-btn {
+  position: fixed; background: rgba(255,255,255,.12); border: none;
+  color: #fff; cursor: pointer; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.lb-btn:hover { background: rgba(255,255,255,.28); }
+.lb-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.lb-close { top: 14px; right: 14px; padding: 8px; }
+.lb-close svg, .lb-prev svg, .lb-next svg { width: 24px; height: 24px; }
+.lb-nav { top: 50%; transform: translateY(-50%); padding: 18px 12px; }
+.lb-prev { left: 12px; }
+.lb-next { right: 12px; }
+.lb-caption {
+  position: fixed; bottom: 0; left: 0; right: 0; padding: 14px 24px;
+  background: linear-gradient(transparent, rgba(0,0,0,.72));
+  color: #fff; font-size: .85rem; text-align: center; pointer-events: none;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.footer {
+  margin-top: 40px; padding: 14px 4px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.footer-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .72rem; font-weight: 600; padding: 3px 8px;
+  border-radius: 999px; white-space: nowrap;
+}
+.badge svg { width: 11px; height: 11px; }
+.ok   { background: #d1fae5; color: #065f46; }
+.warn { background: #fef3c7; color: #92400e; }
+.err  { background: #fee2e2; color: #991b1b; }
+[data-theme="dark"] .ok   { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .warn { background: #78350f; color: #fcd34d; }
+[data-theme="dark"] .err  { background: #7f1d1d; color: #fca5a5; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .ok   { background: #064e3b; color: #6ee7b7; }
+  html:not([data-theme="light"]) .warn { background: #78350f; color: #fcd34d; }
+  html:not([data-theme="light"]) .err  { background: #7f1d1d; color: #fca5a5; }
+}
+.footer-right { display: flex; align-items: center; gap: 10px; }
+.footer-ver { font-size: .75rem; color: var(--muted); }
+.footer-update {
+  font-size: .75rem; font-weight: 600;
+  color: var(--primary); text-decoration: none;
+}
+.footer-update:hover { text-decoration: underline; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 580px) {
+  body { padding: 10px; }
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .dirs-grid    { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .lb-nav       { display: none; }
+  .view-btn span, .dark-btn span { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <nav class="breadcrumb" aria-label="Location">
+    <?php foreach ($crumbs as $i => $c): ?>
+      <?= $i ? '<span class="sep" aria-hidden="true">›</span>' : '' ?>
+      <?php if ($i === count($crumbs) - 1): ?>
+        <span class="crumb-current">
+          <?= $i === 0 ? svg('home') : '' ?><?= e($c['label']) ?>
+        </span>
+      <?php else: ?>
+        <a href="<?= e($c['url']) ?>">
+          <?= $i === 0 ? svg('home') : '' ?><span><?= e($c['label']) ?></span>
+        </a>
+      <?php endif; ?>
+    <?php endforeach; ?>
+  </nav>
+
+  <div class="hdr-controls">
+    <?php if (!empty($images)): ?>
+    <div class="view-toggle" role="group" aria-label="View mode">
+      <button class="view-btn active" data-view="grid" title="Grid view">
+        <?= svg('grid') ?><span>Grid</span>
+      </button>
+      <button class="view-btn" data-view="list" title="List view">
+        <?= svg('list') ?><span>List</span>
+      </button>
+    </div>
+    <?php endif; ?>
+    <button class="dark-btn" id="dark-btn" aria-label="Toggle dark mode">
+      <span class="icon-moon"><?= svg('moon') ?></span>
+      <span class="icon-sun"><?= svg('sun') ?></span>
+    </button>
+  </div>
+</div>
+
+<!-- Subdirectories -->
+<?php if (!empty($subdirs)): ?>
+<p class="section-title">Folders</p>
+<div class="dirs-grid">
+  <?php foreach ($subdirs as $entry):
+    $sub = $dir ? "$dir/$entry" : $entry;
+  ?>
+  <a class="dir-card" href="<?= e($script_name . '?dir=' . rawurlencode($sub)) ?>">
+    <?= svg('folder') ?>
+    <span class="dir-name"><?= e($entry) ?></span>
+  </a>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<!-- Images -->
+<?php if (!empty($images)): ?>
+<p class="section-title">Images (<?= count($images) ?>)</p>
+<div class="gallery" id="gallery">
+
+  <!-- Grid: thumbnail + filename + size only -->
+  <div class="gallery-grid">
+    <?php foreach ($images as $idx => $img):
+      $d    = $image_data[$img];
+      $tsrc = e($script_name . '?dir=' . rawurlencode($dir) . '&thumb=' . rawurlencode($img));
+    ?>
+    <div class="img-card" data-img="<?= $idx ?>" role="button" tabindex="0"
+         aria-label="View <?= e($img) ?>">
+      <?php if ($has_gd): ?>
+        <img class="img-thumb" src="<?= $tsrc ?>" alt="<?= e($img) ?>" loading="lazy">
+      <?php else: ?>
+        <div class="no-thumb"><?= svg('camera') ?></div>
+      <?php endif; ?>
+      <div class="img-info">
+        <div class="img-name"><?= e($img) ?></div>
+        <div class="img-size"><?= human_filesize($d['size']) ?></div>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- List: thumbnail + filename + size + date + camera -->
+  <div class="gallery-list">
+    <?php foreach ($images as $idx => $img):
+      $d    = $image_data[$img];
+      $tsrc = e($script_name . '?dir=' . rawurlencode($dir) . '&thumb=' . rawurlencode($img));
+    ?>
+    <div class="img-row" data-img="<?= $idx ?>" role="button" tabindex="0"
+         aria-label="View <?= e($img) ?>">
+      <?php if ($has_gd): ?>
+        <img class="img-row-thumb" src="<?= $tsrc ?>" alt="" loading="lazy">
+      <?php else: ?>
+        <div class="img-row-thumb no-thumb"><?= svg('camera') ?></div>
+      <?php endif; ?>
+      <div class="img-row-details">
+        <div class="img-row-name"><?= e($img) ?></div>
+        <div class="img-row-meta">
+          <?php if ($d['date']): ?>
+            <span class="meta-row"><?= svg('calendar') ?> <?= e($d['date']) ?></span>
+          <?php endif; ?>
+          <?php if ($d['camera']): ?>
+            <span class="meta-row"><?= svg('camera') ?> <?= e($d['camera']) ?></span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <span class="img-row-size"><?= human_filesize($d['size']) ?></span>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+</div>
+<?php elseif (empty($subdirs)): ?>
+  <p class="empty">This folder is empty.</p>
+<?php endif; ?>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
+  <button class="lb-btn lb-close" aria-label="Close"><?= svg('close') ?></button>
+  <button class="lb-btn lb-nav lb-prev" aria-label="Previous"><?= svg('prev') ?></button>
+  <img class="lb-img" src="" alt="" tabindex="-1">
+  <button class="lb-btn lb-nav lb-next" aria-label="Next"><?= svg('next') ?></button>
+  <div class="lb-caption" aria-live="polite"></div>
+</div>
+
+<!-- Footer: GD/EXIF status + version -->
+<footer class="footer">
+  <div class="footer-badges">
+    <span class="badge <?= $has_gd   ? 'ok' : 'err'  ?>">
+      <?= svg('camera')   ?> GD <?=   $has_gd   ? 'ok' : 'missing' ?>
+    </span>
+    <span class="badge <?= $has_exif ? 'ok' : 'warn' ?>">
+      <?= svg('calendar') ?> EXIF <?= $has_exif ? 'ok' : 'missing' ?>
+    </span>
+  </div>
+  <div class="footer-right">
+    <span class="footer-ver">pSimpleGallery <?= e($version) ?></span>
+    <a id="ver-link" href="<?= e($version_update_url) ?>" class="footer-update"
+       target="_blank" rel="noopener noreferrer" hidden></a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Dark mode ──────────────────────────────────────────────────────────── */
+  const html    = document.documentElement;
+  const darkBtn = document.getElementById('dark-btn');
+
+  darkBtn.addEventListener('click', function () {
+    var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    html.dataset.theme = next;
+    localStorage.setItem('psg_theme', next);
+  });
+
+  /* ── View toggle ────────────────────────────────────────────────────────── */
+  var gallery = document.getElementById('gallery');
+  if (gallery) {
+    var saved = localStorage.getItem('psg_view') || 'grid';
+    if (saved === 'list') {
+      gallery.classList.add('list-view');
+      document.querySelector('[data-view="list"]').classList.add('active');
+      document.querySelector('[data-view="grid"]').classList.remove('active');
+    }
+    document.querySelectorAll('.view-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        gallery.classList.toggle('list-view', btn.dataset.view === 'list');
+        localStorage.setItem('psg_view', btn.dataset.view);
+      });
+    });
+  }
+
+  /* ── Lightbox ───────────────────────────────────────────────────────────── */
+  var IMAGES  = <?= $js_imgs_json ?>;
+  var current = 0;
+  var lb      = document.getElementById('lightbox');
+  var lbImg   = lb.querySelector('.lb-img');
+  var lbCap   = lb.querySelector('.lb-caption');
+
+  function lbOpen(idx) {
+    if (!IMAGES.length) return;
+    current    = ((idx % IMAGES.length) + IMAGES.length) % IMAGES.length;
+    lbImg.src  = '';
+    lbImg.alt  = IMAGES[current].name;
+    lbImg.src  = IMAGES[current].src;
+    lbCap.textContent = IMAGES[current].name + ' (' + (current + 1) + ' / ' + IMAGES.length + ')';
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    lb.querySelector('.lb-close').focus();
+  }
+
+  function lbClose() {
+    lb.classList.remove('open');
+    lbImg.src = '';
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-img]').forEach(function (el) {
+    el.addEventListener('click', function () { lbOpen(+el.dataset.img); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); lbOpen(+el.dataset.img); }
+    });
+  });
+
+  lb.querySelector('.lb-close').addEventListener('click', lbClose);
+  lb.querySelector('.lb-prev').addEventListener('click', function () { lbOpen(current - 1); });
+  lb.querySelector('.lb-next').addEventListener('click', function () { lbOpen(current + 1); });
+  lb.addEventListener('click', function (e) { if (e.target === lb) lbClose(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape')     lbClose();
+    if (e.key === 'ArrowLeft')  lbOpen(current - 1);
+    if (e.key === 'ArrowRight') lbOpen(current + 1);
+  });
+
+  var touchX = 0;
+  lb.addEventListener('touchstart', function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  lb.addEventListener('touchend',   function (e) {
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) lbOpen(dx < 0 ? current + 1 : current - 1);
+  });
+
+  /* ── Version check (async, cached 24 h in localStorage) ────────────────── */
+  (function () {
+    var LOCAL   = <?= json_encode($version) ?>;
+    var RAW_URL = <?= json_encode($version_raw_url) ?>;
+    var UPD_URL = <?= json_encode($version_update_url) ?>;
+    var KEY     = 'psg_ver';
+    var TTL     = 86400000; // 24 hours
+
+    function showIfNewer(v) {
+      v = (v || '').trim();
+      if (!v || isNaN(parseFloat(v))) return;
+      if (parseFloat(v) > parseFloat(LOCAL)) {
+        var el = document.getElementById('ver-link');
+        if (el) {
+          el.textContent = 'update v' + v + ' available ↗';
+          el.removeAttribute('hidden');
+        }
+      }
+    }
+
+    try {
+      var cached = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (cached && (Date.now() - cached.ts) < TTL) { showIfNewer(cached.v); return; }
+    } catch (_) {}
+
+    fetch(RAW_URL, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+      .then(function (v) {
+        try { localStorage.setItem(KEY, JSON.stringify({ v: v.trim(), ts: Date.now() })); } catch (_) {}
+        showIfNewer(v);
+      })
+      .catch(function () {}); // network errors are silent
+  }());
+
+}());
+</script>
+</body>
+</html>
